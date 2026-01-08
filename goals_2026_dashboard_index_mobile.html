@@ -1,0 +1,1323 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>2026 Goals Dashboard</title>
+
+  <!-- PapaParse (CSV parsing) -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- Chart.js (line chart) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#f6f7fb;
+      --panel:#ffffff;
+      --text:#111827;
+      --muted:#6b7280;
+      --border:rgba(17,24,39,.10);
+      --shadow: 0 10px 28px rgba(17,24,39,.08);
+
+      --accent:#3b82f6;
+      --good:#22c55e;
+      --bad:#ef4444;
+      --warn:#f59e0b;
+
+      --sidebar:#0f172a;
+      --sidebar2:#111c34;
+      --sidebarText:#e5e7eb;
+      --sidebarMuted:#9ca3af;
+      --sidebarBorder:rgba(255,255,255,.12);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background: linear-gradient(180deg, #fbfcff, var(--bg));
+      color:var(--text);
+    }
+    a{color:inherit}
+
+    .app{
+      display:grid;
+      grid-template-columns: 250px 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar{
+      background: linear-gradient(180deg, var(--sidebar), var(--sidebar2));
+      color: var(--sidebarText);
+      border-right: 1px solid rgba(0,0,0,.06);
+      padding: 14px 12px;
+      position: sticky;
+      top:0;
+      height: 100vh;
+      overflow:auto;
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding: 10px 10px;
+      border: 1px solid var(--sidebarBorder);
+      border-radius: 14px;
+      background: rgba(255,255,255,.05);
+    }
+    .logo{
+      width: 26px; height: 26px;
+      border-radius: 10px;
+      background: radial-gradient(circle at 30% 30%, rgba(59,130,246,.95), rgba(34,197,94,.8));
+      box-shadow: 0 10px 22px rgba(0,0,0,.25);
+      flex: 0 0 auto;
+    }
+    .brand .t1{font-weight: 900; letter-spacing:.2px; font-size: 13px; line-height: 1.2;}
+    .brand .t2{font-size: 12px; color: var(--sidebarMuted); margin-top: 2px;}
+
+    .nav{
+      margin-top: 10px;
+      display:flex;
+      flex-direction:column;
+      gap: 6px;
+    }
+    .nav a{
+      text-decoration:none;
+      color: var(--sidebarText);
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding: 9px 10px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      background: transparent;
+      font-size: 13px;
+      font-weight: 750;
+    }
+    .nav a:hover{
+      background: rgba(255,255,255,.06);
+      border-color: rgba(255,255,255,.10);
+    }
+    .nav .dot{
+      width: 10px; height: 10px; border-radius: 4px;
+      background: rgba(255,255,255,.22);
+    }
+    .nav a.active .dot{ background: var(--accent); }
+
+    .sidebar .hint{
+      margin-top: 10px;
+      padding: 10px 10px;
+      border-radius: 14px;
+      border: 1px solid var(--sidebarBorder);
+      background: rgba(255,255,255,.05);
+      color: var(--sidebarMuted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .main{
+      padding: 16px 14px 40px;
+      max-width: 1100px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    header{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 10px;
+    }
+    .title{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .title h1{
+      margin:0;
+      font-size: 18px;
+      letter-spacing:.2px;
+      font-weight: 950;
+    }
+    .title .sub{
+      color:var(--muted);
+      font-size: 12.5px;
+      line-height: 1.35;
+      max-width: 64ch;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:7px 10px;
+      border:1px solid var(--border);
+      border-radius:999px;
+      background: #ffffff;
+      box-shadow: none;
+      font-size: 12px;
+      color: var(--muted);
+      user-select:none;
+      white-space:nowrap;
+    }
+
+    .stack{
+      display:flex;
+      flex-direction:column;
+      gap: 12px;
+    }
+
+    details.section{
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    details.section > summary{
+      list-style:none;
+      cursor:pointer;
+      padding: 12px 12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      background: #fafbff;
+      border-bottom: 1px solid var(--border);
+      user-select:none;
+    }
+    details.section > summary::-webkit-details-marker{display:none;}
+    .sumTitle{
+      font-weight: 950;
+      font-size: 13px;
+      letter-spacing:.2px;
+      color: #111827;
+      display:flex;
+      align-items:center;
+      gap: 10px;
+    }
+    .chev{
+      width: 10px; height: 10px;
+      border-right: 2px solid rgba(17,24,39,.6);
+      border-bottom: 2px solid rgba(17,24,39,.6);
+      transform: rotate(45deg);
+      transition: transform .12s ease;
+      margin-left: 8px;
+      flex: 0 0 auto;
+    }
+    details[open] .chev{ transform: rotate(225deg); }
+    .sectionBody{ padding: 12px 12px 14px; }
+
+    label{
+      font-size: 12px;
+      color: var(--muted);
+      display:block;
+      margin-bottom:6px;
+      font-weight: 800;
+    }
+    select, input[type="date"], button, textarea{
+      width:100%;
+      padding: 10px 10px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      color: var(--text);
+      outline:none;
+      font-size: 14px;
+    }
+    select:focus, input[type="date"]:focus, textarea:focus{
+      border-color: rgba(59,130,246,.55);
+      box-shadow: 0 0 0 4px rgba(59,130,246,.12);
+    }
+    button{
+      cursor:pointer;
+      font-weight: 900;
+      letter-spacing:.2px;
+    }
+    button.primary{
+      border-color: rgba(59,130,246,.45);
+      background: linear-gradient(180deg, rgba(59,130,246,.12), rgba(59,130,246,.06));
+    }
+    button.ghost{
+      background: #ffffff;
+    }
+    .mini{ font-size: 12px; color: var(--muted); }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; }
+    .col{ flex:1; min-width: 150px; }
+
+    .itemsBox{
+      border:1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 10px 8px;
+      background: #ffffff;
+    }
+    .itemsTop{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      margin-bottom: 8px;
+    }
+    .itemsTop .count{ font-size: 12px; color: var(--muted); font-weight: 900; }
+    .itemsTop .btns{ display:flex; gap:8px; }
+    .itemsTop button{ width:auto; padding: 7px 10px; border-radius: 12px; font-size: 12px; }
+    .itemsList{
+      max-height: 220px;
+      overflow:auto;
+      padding-right: 6px;
+    }
+    .chk{
+      display:flex; align-items:center; gap:10px;
+      padding: 7px 8px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+    }
+    .chk:hover{ border-color: rgba(17,24,39,.08); background: rgba(17,24,39,.03); }
+    .chk input{ width: 16px; height: 16px; }
+    .chk span{ font-size: 13px; color: #111827; font-weight: 650; }
+
+    .kpis{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .kpi{
+      padding: 12px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+    }
+    .kpi .v{
+      font-size: 20px;
+      font-weight: 950;
+      letter-spacing:.2px;
+      margin-top:4px;
+    }
+    .kpi .t{ color: var(--muted); font-size: 12px; font-weight: 850; }
+    .progressCard{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #ffffff;
+    }
+    .progressLeft{display:flex; flex-direction:column; gap:4px;}
+    .progressLeft .label{font-size:12px;color:var(--muted);font-weight:900;}
+    .progressLeft .value{font-size:16px;font-weight:950;color:#111827;}
+    .bar{
+      flex:1;
+      height: 10px;
+      border-radius: 999px;
+      background: #eef2ff;
+      border: 1px solid rgba(59,130,246,.18);
+      overflow:hidden;
+      min-width: 120px;
+    }
+    .bar > div{
+      height:100%;
+      width: 0%;
+      background: linear-gradient(90deg, rgba(59,130,246,.95), rgba(34,197,94,.85));
+      border-radius: 999px;
+      transition: width .25s ease;
+    }
+
+    .legend{
+      display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .legend .barLegend{ display:flex; align-items:center; gap:6px; }
+    .swatch{ width: 16px; height: 10px; border-radius: 4px; border:1px solid var(--border); }
+
+    .heat{
+      border:1px solid var(--border);
+      border-radius: 16px;
+      background: #ffffff;
+      padding: 10px;
+      overflow:auto;
+    }
+    .heatInner{ min-width: 740px; }
+    .heatHead{
+      display:grid;
+      grid-template-columns: 64px repeat(7, 1fr);
+      gap: 6px;
+      padding: 0 0 8px 0;
+      position: sticky;
+      top: 0;
+      background: rgba(255,255,255,.88);
+      backdrop-filter: blur(6px);
+      z-index: 5;
+    }
+    .heatHead .d{
+      font-size: 12px;
+      color: var(--muted);
+      text-align:center;
+      padding: 4px 0;
+      font-weight: 950;
+    }
+    .heatHead .wk{ text-align:left; padding-left: 6px; }
+    .heatBody{
+      display:flex;
+      flex-direction:column;
+      gap: 6px;
+    }
+    .wkRow{
+      display:grid;
+      grid-template-columns: 64px repeat(7, 1fr);
+      gap: 6px;
+      align-items:stretch;
+    }
+    .wkLabel{
+      font-size: 12px;
+      color: var(--muted);
+      display:flex;
+      align-items:center;
+      gap:6px;
+      padding-left: 6px;
+      border-left: 3px solid rgba(59,130,246,.25);
+      font-weight: 950;
+      white-space:nowrap;
+    }
+    .badge{
+      display:inline-flex; align-items:center; gap:6px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 950;
+    }
+
+    .cell{
+      aspect-ratio: 1 / 1;
+      border-radius: 10px;
+      border: 1px solid rgba(17,24,39,.10);
+      background: #f3f4f6;
+      cursor: pointer;
+      user-select:none;
+      position: relative;
+      overflow:hidden;
+      min-width: 28px;
+      max-width: 44px;
+    }
+    .cellInner{
+      width:100%;
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight: 950;
+      font-size: 12px;
+      color: rgba(17,24,39,0);
+      transition: color .08s ease;
+    }
+    .dayNum{
+      position:absolute;
+      top: 5px;
+      left: 6px;
+      font-size: 10px;
+      font-weight: 950;
+      color: rgba(17,24,39,.55);
+      background: rgba(255,255,255,.6);
+      border: 1px solid rgba(17,24,39,.08);
+      border-radius: 8px;
+      padding: 1px 5px;
+      line-height: 1.2;
+      backdrop-filter: blur(4px);
+    }
+    .cell.empty{
+      background: #ffffff;
+      border-style:dashed;
+      opacity:.55;
+      cursor: default;
+    }
+    .cell:hover{
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(17,24,39,.10);
+      outline: 2px solid rgba(59,130,246,.25);
+      outline-offset: 2px;
+    }
+    .cell:hover .cellInner{ color: rgba(17,24,39,.92); }
+    .cell.is-active{
+      outline: 2px solid rgba(59,130,246,.25);
+      outline-offset: 2px;
+      box-shadow: 0 8px 18px rgba(17,24,39,.10);
+    }
+    .cell.is-active .cellInner{ color: rgba(17,24,39,.92); }
+
+    .tooltip{
+      position: fixed;
+      transform: translate(-9999px, -9999px);
+      z-index: 50;
+      pointer-events:none;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 10px;
+      box-shadow: 0 18px 40px rgba(17,24,39,.12);
+      width: 320px;
+    }
+    .tooltip .dt{ font-weight: 950; margin-bottom: 4px; color:#111827; }
+    .tooltip .ln{ color: var(--muted); font-size: 12px; line-height: 1.35; font-weight: 750;}
+    .tooltip .brk{ margin-top: 8px; font-size: 12px; color: #111827; font-weight: 650; }
+
+    .chartWrap{
+      border:1px solid var(--border);
+      border-radius: 16px;
+      background: #ffffff;
+      padding: 10px 10px 12px;
+    }
+    .chartHd{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom: 8px;
+    }
+    .chartHd .h{ font-size: 13px; font-weight: 950; letter-spacing:.2px; }
+    .chartHd .s{ font-size: 12px; color: var(--muted); font-weight: 800; white-space:nowrap; }
+    #trendChart{ width: 100%; height: 220px; }
+
+    .statusLine{
+      font-size: 12px;
+      color: var(--muted);
+      padding: 10px 12px;
+      font-weight: 800;
+      border-top: 1px solid var(--border);
+      background: #fafbff;
+    }
+    .err{ color: #b91c1c; }
+
+    .mapper{
+      border:1px solid rgba(17,24,39,.12);
+      background:#fafbff;
+      border-radius:14px;
+      padding:12px;
+      margin-bottom:12px;
+      display:none;
+    }
+    textarea{min-height:110px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+
+    @media (max-width: 900px){
+      .app{grid-template-columns: 1fr;}
+      .sidebar{
+        position: sticky;
+        top: 0;
+        height: auto;
+        z-index: 25;
+        border-right: none;
+        border-bottom: 1px solid rgba(0,0,0,.08);
+        display:flex;
+        gap:10px;
+        align-items:center;
+        justify-content:space-between;
+        padding: 10px 10px;
+      }
+      .nav{flex-direction:row; margin-top:0; gap:6px;}
+      .nav a{padding: 8px 9px; font-size: 12px;}
+      .sidebar .hint{display:none;}
+      .main{padding: 12px 10px 34px;}
+      .kpis{grid-template-columns:1fr;}
+      .heatInner{min-width: 660px;}
+      .cell{max-width: 40px;}
+      #trendChart{height: 200px;}
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <div class="t1">Goals 2026</div>
+          <div class="t2">Dashboard</div>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Primary">
+        <a class="active" href="#overview"><span class="dot"></span><span>Overview</span></a>
+        <a href="#heatmap"><span class="dot"></span><span>Heatmap</span></a>
+        <a href="#filters"><span class="dot"></span><span>Filters</span></a>
+      </nav>
+
+      <div class="hint">Hover to see score. Tap a tile on mobile to reveal it.</div>
+    </aside>
+
+    <main class="main">
+      <header id="overview">
+        <div class="title">
+          <h1>2026 Goals Dashboard</h1>
+          <div class="sub">Compact single-scroll layout. Heatmap renders only the full weeks needed for the selected date range. Tile shows day-of-month; score shows on hover/tap.</div>
+        </div>
+        <div class="pill" id="dataPill">Data: loading…</div>
+      </header>
+
+      <div class="stack">
+        <details class="section" open>
+          <summary>
+            <div class="sumTitle">Overview <span class="pill" id="scopePill">Scope: —</span></div>
+            <div class="chev" aria-hidden="true"></div>
+          </summary>
+          <div class="sectionBody">
+            <div class="progressCard" style="margin-bottom:10px;">
+              <div class="progressLeft">
+                <div class="label">Overall achievement</div>
+                <div class="value" id="progressLabel">—</div>
+              </div>
+              <div class="bar" aria-label="Progress">
+                <div id="progressFill"></div>
+              </div>
+            </div>
+
+            <div class="kpis">
+              <div class="kpi">
+                <div class="t">Overall achievement</div>
+                <div class="v" id="kpiAchievement">—</div>
+                <div class="mini" id="kpiAchievementSub"></div>
+              </div>
+              <div class="kpi">
+                <div class="t">Days tracked</div>
+                <div class="v" id="kpiDays">—</div>
+                <div class="mini" id="kpiDaysSub"></div>
+              </div>
+              <div class="kpi">
+                <div class="t">Avg score / day</div>
+                <div class="v" id="kpiAvg">—</div>
+                <div class="mini" id="kpiAvgSub"></div>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details class="section" id="heatmap" open>
+          <summary>
+            <div class="sumTitle">Heatmap & Trend</div>
+            <div class="chev" aria-hidden="true"></div>
+          </summary>
+          <div class="sectionBody">
+            <div class="legend" style="margin-bottom:8px;">
+              <div>Heatmap (weeks × days)</div>
+              <div class="barLegend">
+                <span>Low</span>
+                <div class="swatch" style="background: var(--bad);"></div>
+                <div class="swatch" style="background: var(--warn);"></div>
+                <div class="swatch" style="background: var(--good);"></div>
+                <span>High</span>
+              </div>
+            </div>
+
+            <div class="heat">
+              <div class="heatInner">
+                <div class="heatHead" id="heatHead"></div>
+                <div class="heatBody" id="heatBody"></div>
+              </div>
+            </div>
+
+            <div class="mini" id="note" style="margin-top:8px;"></div>
+
+            <div class="chartWrap" style="margin-top:10px;">
+              <div class="chartHd">
+                <div class="h">Progress over time</div>
+                <div class="s" id="chartScope">—</div>
+              </div>
+              <canvas id="trendChart"></canvas>
+            </div>
+          </div>
+        </details>
+
+        <details class="section" id="filters">
+          <summary>
+            <div class="sumTitle">Filters</div>
+            <div class="chev" aria-hidden="true"></div>
+          </summary>
+          <div class="sectionBody">
+            <div class="mapper" id="mapperBox">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
+                <div style="font-weight:950;font-size:13px;">Column Mapper</div>
+                <div class="pill" style="box-shadow:none;">Pick Usuario / Fecha</div>
+              </div>
+              <div class="row" style="margin-bottom:10px;">
+                <div class="col">
+                  <label for="mapUser">Usuario column</label>
+                  <select id="mapUser"></select>
+                </div>
+                <div class="col">
+                  <label for="mapFecha">Fecha column</label>
+                  <select id="mapFecha"></select>
+                </div>
+                <div class="col">
+                  <label for="mapTimestamp">Timestamp (optional)</label>
+                  <select id="mapTimestamp"></select>
+                </div>
+              </div>
+              <button class="primary" id="btnUseMapping" type="button">Use mapping</button>
+              <div class="mini" style="margin-top:8px;">Debug: headers from CSV</div>
+              <textarea id="headersDebug" readonly></textarea>
+            </div>
+
+            <div style="margin-bottom:12px;">
+              <label for="userSelect">Usuario</label>
+              <select id="userSelect"></select>
+              <div class="mini" style="margin-top:6px;">“Both” aggregates both users together.</div>
+            </div>
+
+            <div class="row" style="margin-bottom:12px;">
+              <div class="col">
+                <label for="startDate">Start</label>
+                <input type="date" id="startDate" />
+              </div>
+              <div class="col">
+                <label for="endDate">End</label>
+                <input type="date" id="endDate" />
+              </div>
+            </div>
+
+            <div style="margin-bottom:12px;">
+              <label>Items (tracking points)</label>
+              <div class="itemsBox">
+                <div class="itemsTop">
+                  <div class="count" id="itemsCount">0 selected</div>
+                  <div class="btns">
+                    <button class="ghost" id="btnAll" type="button">All</button>
+                    <button class="ghost" id="btnNone" type="button">None</button>
+                  </div>
+                </div>
+                <div class="itemsList" id="itemsList"></div>
+              </div>
+            </div>
+
+            <div class="row">
+              <button class="primary" id="btnApply" type="button">Apply</button>
+              <button class="ghost" id="btnReset" type="button">Reset</button>
+            </div>
+          </div>
+          <div class="statusLine" id="status">Ready.</div>
+        </details>
+      </div>
+    </main>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+<script>
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRJ5kykeEj6DgjBnxeM2vParV9k-ShCBszfH8QEN9YJza4osfWYBxWxm9Bwj5aqr_1nZsPQVaKN24u5/pub?gid=2105227794&single=true&output=csv";
+const DEFAULT_START = "2026-01-01";
+const DEFAULT_END   = "2026-12-31";
+
+let rawRows = [];
+let headers = [];
+let itemCols = [];
+let users = [];
+let selectedItems = new Set();
+let selectedUser = "__BOTH__";
+
+let COL_USER = null;
+let COL_FECHA = null;
+let COL_TIMESTAMP = null;
+
+let trendChart = null;
+
+const el = (id)=>document.getElementById(id);
+
+const userSelect = el("userSelect");
+const startDate = el("startDate");
+const endDate = el("endDate");
+const itemsList = el("itemsList");
+const itemsCount = el("itemsCount");
+const status = el("status");
+const dataPill = el("dataPill");
+const scopePill = el("scopePill");
+
+const kpiAchievement = el("kpiAchievement");
+const kpiAchievementSub = el("kpiAchievementSub");
+const kpiDays = el("kpiDays");
+const kpiDaysSub = el("kpiDaysSub");
+const kpiAvg = el("kpiAvg");
+const kpiAvgSub = el("kpiAvgSub");
+
+const progressLabel = el("progressLabel");
+const progressFill = el("progressFill");
+
+const heatHead = el("heatHead");
+const heatBody = el("heatBody");
+const tooltip = el("tooltip");
+const note = el("note");
+
+const chartScope = el("chartScope");
+const trendCanvas = el("trendChart");
+
+const mapperBox = el("mapperBox");
+const mapUser = el("mapUser");
+const mapFecha = el("mapFecha");
+const mapTimestamp = el("mapTimestamp");
+const btnUseMapping = el("btnUseMapping");
+const headersDebug = el("headersDebug");
+
+function setStatus(msg, isErr=false){
+  status.innerHTML = isErr ? `<span class="err">${msg}</span>` : msg;
+}
+
+function removeAccents(s){ return s.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+function canon(s){
+  return removeAccents(String(s ?? "").trim().toLowerCase())
+    .replace(/\s+/g,"")
+    .replace(/[^\w]/g,"");
+}
+function pickHeader(hs, tokens){
+  const cHs = hs.map(h=>({h, c: canon(h)}));
+  for(const t of tokens){
+    const ct = canon(t);
+    const exact = cHs.find(x=>x.c === ct);
+    if(exact) return exact.h;
+  }
+  for(const t of tokens){
+    const ct = canon(t);
+    const contains = cHs.find(x=>x.c.includes(ct));
+    if(contains) return contains.h;
+  }
+  return null;
+}
+function detectColumns(hs){
+  const colUser = pickHeader(hs, ["usuario","user","persona","nombre","colaborador","owner"]);
+  const colFecha = pickHeader(hs, ["fecha","date","dia","day"]);
+  const colTimestamp = pickHeader(hs, ["timestamp","submitted","created","hora","time"]);
+  const reserved = new Set([colUser, colFecha, colTimestamp].filter(Boolean));
+  const items = hs.filter(h=>h && !reserved.has(h));
+  return { colUser, colFecha, colTimestamp, items };
+}
+
+function parseAnyDate(s){
+  if(!s) return null;
+  const str = String(s).trim();
+
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(str);
+  if(iso){
+    const d = new Date(Date.UTC(+iso[1], +iso[2]-1, +iso[3]));
+    return isNaN(d) ? null : d;
+  }
+
+  const sl = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(str);
+  if(sl){
+    const mon = +sl[1], day = +sl[2], y = +sl[3];
+    const d = new Date(Date.UTC(y, mon-1, day));
+    return isNaN(d) ? null : d;
+  }
+
+  const d = new Date(str);
+  return isNaN(d) ? null : new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+}
+
+function fmtDate(d){
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth()+1).padStart(2,"0");
+  const da = String(d.getUTCDate()).padStart(2,"0");
+  return `${y}-${m}-${da}`;
+}
+function monthShort(d){ return ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getUTCMonth()]; }
+function dayName(i){ return ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][i]; }
+
+function isoDay(d){ const day = d.getUTCDay(); return day === 0 ? 7 : day; }
+function startOfIsoWeek(d){
+  const dd = new Date(d.getTime());
+  const delta = isoDay(dd) - 1;
+  dd.setUTCDate(dd.getUTCDate() - delta);
+  dd.setUTCHours(0,0,0,0);
+  return dd;
+}
+function addDays(d,n){ const x = new Date(d.getTime()); x.setUTCDate(x.getUTCDate()+n); return x; }
+function isoWeekNumber(d){
+  const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  date.setUTCDate(date.getUTCDate() + 4 - isoDay(date));
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+}
+
+function normYesNo(v){
+  const s = String(v ?? "").trim().toLowerCase();
+  if(["si","sí","yes","y","1","true"].includes(s)) return 1;
+  if(["no","n","0","false",""].includes(s)) return 0;
+  return 0;
+}
+
+function hexToRgb(hex){
+  const h = hex.replace("#","").trim();
+  const bigint = parseInt(h.length===3 ? h.split("").map(x=>x+x).join("") : h, 16);
+  return { r:(bigint>>16)&255, g:(bigint>>8)&255, b:bigint&255 };
+}
+function rgbToHex(r,g,b){
+  const toHex = (x)=>x.toString(16).padStart(2,"0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+function lerp(a,b,t){ return a+(b-a)*t; }
+function lerpColor(c1,c2,t){
+  const A = hexToRgb(c1), B = hexToRgb(c2);
+  return rgbToHex(
+    Math.round(lerp(A.r,B.r,t)),
+    Math.round(lerp(A.g,B.g,t)),
+    Math.round(lerp(A.b,B.b,t))
+  );
+}
+
+function buildUserSelect(){
+  userSelect.innerHTML = "";
+  const optBoth = document.createElement("option");
+  optBoth.value = "__BOTH__";
+  optBoth.textContent = "Both (aggregate)";
+  userSelect.appendChild(optBoth);
+  users.forEach(u=>{
+    const op = document.createElement("option");
+    op.value = u;
+    op.textContent = u;
+    userSelect.appendChild(op);
+  });
+  userSelect.value = "__BOTH__";
+}
+
+function buildItemsList(){
+  itemsList.innerHTML = "";
+  itemCols.forEach(col=>{
+    const row = document.createElement("label");
+    row.className = "chk";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = true;
+    cb.dataset.col = col;
+
+    const sp = document.createElement("span");
+    sp.textContent = col;
+
+    cb.addEventListener("change", ()=>{
+      if(cb.checked) selectedItems.add(col);
+      else selectedItems.delete(col);
+      refreshItemsCount();
+    });
+
+    row.appendChild(cb);
+    row.appendChild(sp);
+    itemsList.appendChild(row);
+  });
+  selectedItems = new Set(itemCols);
+  refreshItemsCount();
+}
+function refreshItemsCount(){ itemsCount.textContent = `${selectedItems.size} selected`; }
+
+function aggregateDay(rowsForDay, items){
+  const out = {};
+  items.forEach(c=> out[c] = 0);
+  for(const r of rowsForDay){
+    for(const c of items){
+      out[c] = Math.max(out[c], normYesNo(r[c]));
+    }
+  }
+  return out;
+}
+
+function buildDailySeries(rangeStart, rangeEnd, aggByDate, items){
+  const labels = [];
+  const values = [];
+  const maxScore = items.length;
+
+  let d = new Date(rangeStart.getTime());
+  while(d <= rangeEnd){
+    const key = fmtDate(d);
+    labels.push(key.slice(5)); // MM-DD
+    const agg = aggByDate.get(key) || null;
+    if(!agg){
+      values.push(null);
+    } else {
+      const score = items.reduce((s,c)=>s + (agg[c]||0), 0);
+      const pct = maxScore ? (score / maxScore) * 100 : 0;
+      values.push(Math.round(pct));
+    }
+    d = addDays(d, 1);
+  }
+  return { labels, values };
+}
+
+function renderChart(rangeStart, rangeEnd, aggByDate, items){
+  const { labels, values } = buildDailySeries(rangeStart, rangeEnd, aggByDate, items);
+  const who = (selectedUser === "__BOTH__") ? "Both" : selectedUser;
+  chartScope.textContent = `${who} • ${items.length} item(s) • ${fmtDate(rangeStart)} → ${fmtDate(rangeEnd)} • values = % per day`;
+
+  const ctx = trendCanvas.getContext("2d");
+  if(trendChart) trendChart.destroy();
+
+  trendChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Daily %",
+        data: values,
+        spanGaps: false,
+        tension: 0.25,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        borderWidth: 2,
+        borderColor: getComputedStyle(document.documentElement).getPropertyValue("--accent").trim(),
+        backgroundColor: "rgba(59,130,246,.12)",
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => (ctx.parsed.y == null ? "No entry" : `Daily: ${ctx.parsed.y}%`)
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } },
+        y: { min: 0, max: 100, ticks: { stepSize: 25 }, grid: { color: "rgba(17,24,39,.08)" } }
+      }
+    }
+  });
+}
+
+function applyFilters(){
+  selectedUser = userSelect.value;
+
+  const s = parseAnyDate(startDate.value);
+  const e = parseAnyDate(endDate.value);
+  if(!s || !e) return setStatus("Invalid date range.", true);
+  if(s > e) return setStatus("Start date must be <= end date.", true);
+  if(selectedItems.size === 0) return setStatus("Select at least 1 item.", true);
+
+  const items = Array.from(selectedItems);
+
+  const filtered = rawRows.filter(r=>{
+    const d = parseAnyDate(r.__fecha_raw);
+    if(!d) return false;
+    if(d < s || d > e) return false;
+    if(selectedUser === "__BOTH__") return true;
+    return String(r.__user ?? "").trim() === selectedUser;
+  });
+
+  const byDate = new Map();
+  for(const r of filtered){
+    const d = parseAnyDate(r.__fecha_raw);
+    if(!d) continue;
+    const key = fmtDate(d);
+    if(!byDate.has(key)) byDate.set(key, []);
+    byDate.get(key).push(r);
+  }
+
+  let trackedDays = 0;
+  let achieved = 0;
+  const aggByDate = new Map();
+
+  for(const [dateKey, rows] of byDate.entries()){
+    trackedDays += 1;
+    const agg = aggregateDay(rows, items);
+    aggByDate.set(dateKey, agg);
+    achieved += items.reduce((sum,c)=>sum + agg[c], 0);
+  }
+
+  const possible = trackedDays * items.length;
+  const pct = possible > 0 ? (achieved / possible) : 0;
+
+  kpiAchievement.textContent = possible > 0 ? `${Math.round(pct*100)}%` : "—";
+  kpiAchievementSub.textContent = possible > 0 ? `${achieved} / ${possible} yes` : "No tracked days in range.";
+
+  kpiDays.textContent = trackedDays ? String(trackedDays) : "—";
+  kpiDaysSub.textContent = `Range days: ${Math.floor((e - s)/86400000)+1}`;
+
+  const avg = trackedDays ? (achieved / trackedDays) : 0;
+  kpiAvg.textContent = trackedDays ? avg.toFixed(2) : "—";
+  kpiAvgSub.textContent = `Max per day: ${items.length}`;
+
+  const pctLabel = possible > 0 ? `${Math.round(pct*100)}%` : "—";
+  progressLabel.textContent = pctLabel;
+  progressFill.style.width = `${Math.round(pct*100)}%`;
+
+  const who = (selectedUser === "__BOTH__") ? "Both" : selectedUser;
+  scopePill.textContent = `Scope: ${who} • ${items.length} item(s) • ${startDate.value} → ${endDate.value}`;
+
+  note.textContent = `Tiles show day-of-month. Score appears on hover/tap. Weeks render only for selected range (full weeks).`;
+
+  renderHeatmap(s, e, aggByDate, items);
+  renderChart(s, e, aggByDate, items);
+
+  setStatus("Applied.");
+}
+
+function renderHeatmap(rangeStart, rangeEnd, aggByDate, items){
+  heatHead.innerHTML = "";
+  const wk = document.createElement("div");
+  wk.className = "d wk";
+  wk.textContent = "Wk";
+  heatHead.appendChild(wk);
+  for(let i=0;i<7;i++){
+    const d = document.createElement("div");
+    d.className = "d";
+    d.textContent = dayName(i);
+    heatHead.appendChild(d);
+  }
+
+  heatBody.innerHTML = "";
+
+  const startWeek = startOfIsoWeek(rangeStart);
+  const endWeek = startOfIsoWeek(rangeEnd);
+  const maxScore = items.length;
+
+  function showTip(x,y, html){
+    tooltip.innerHTML = html;
+    tooltip.style.transform = `translate(${x+14}px, ${y+14}px)`;
+  }
+  function hideTip(){ tooltip.style.transform = `translate(-9999px, -9999px)`; }
+
+  const bad = getComputedStyle(document.documentElement).getPropertyValue("--bad").trim();
+  const warn = getComputedStyle(document.documentElement).getPropertyValue("--warn").trim();
+  const good = getComputedStyle(document.documentElement).getPropertyValue("--good").trim();
+
+  let cursor = new Date(startWeek.getTime());
+  while(cursor <= endWeek){
+    const row = document.createElement("div");
+    row.className = "wkRow";
+
+    const label = document.createElement("div");
+    label.className = "wkLabel";
+    const wno = isoWeekNumber(cursor);
+    label.innerHTML = `W${String(wno).padStart(2,"0")} <span class="badge">${monthShort(cursor)}</span>`;
+    row.appendChild(label);
+
+    for(let i=0;i<7;i++){
+      const day = addDays(cursor, i);
+      const cell = document.createElement("div");
+      cell.className = "cell";
+
+      const inRange = (day >= rangeStart && day <= rangeEnd);
+      const key = fmtDate(day);
+      const dom = day.getUTCDate();
+
+      if(!inRange){
+        cell.classList.add("empty");
+        row.appendChild(cell);
+        continue;
+      }
+
+      const agg = aggByDate.get(key) || null;
+      const score = agg ? items.reduce((s,c)=>s + (agg[c]||0), 0) : null;
+
+      const dayTag = document.createElement("div");
+      dayTag.className = "dayNum";
+      dayTag.textContent = String(dom);
+      cell.appendChild(dayTag);
+
+      const inner = document.createElement("div");
+      inner.className = "cellInner";
+      inner.textContent = score === null ? "" : String(score);
+      cell.appendChild(inner);
+
+      if(score === null){
+        cell.classList.add("empty");
+      } else {
+        const t = maxScore === 0 ? 0 : (score / maxScore);
+        let bg;
+        if(t <= 0.5) bg = lerpColor(bad, warn, t/0.5);
+        else bg = lerpColor(warn, good, (t-0.5)/0.5);
+        const softened = lerpColor(bg, "#ffffff", 0.25);
+        cell.style.background = softened;
+      }
+
+      cell.addEventListener("mousemove", (ev)=>{
+        const agg2 = aggByDate.get(key) || null;
+        const score2 = agg2 ? items.reduce((s,c)=>s + (agg2[c]||0), 0) : 0;
+
+        let breakdown = "";
+        if(agg2){
+          const yes = items.filter(c => (agg2[c]||0) === 1);
+          const no = items.filter(c => (agg2[c]||0) === 0);
+          breakdown = `
+            <div class="brk">
+              <div><b>Score:</b> ${score2} / ${maxScore}</div>
+              <div class="ln" style="margin-top:6px;"><b>Yes:</b> ${yes.length ? yes.join(", ") : "—"}</div>
+              <div class="ln" style="margin-top:4px;"><b>No:</b> ${no.length ? no.join(", ") : "—"}</div>
+            </div>`;
+        } else {
+          breakdown = `<div class="brk"><div class="ln">No entry for this date.</div></div>`;
+        }
+
+        showTip(ev.clientX, ev.clientY, `
+          <div class="dt">${key}</div>
+          <div class="ln">Week W${String(isoWeekNumber(day)).padStart(2,"0")} • ${dayName(i)} • Day ${dom}</div>
+          ${breakdown}
+        `);
+      });
+      cell.addEventListener("mouseleave", hideTip);
+
+      cell.addEventListener("click", ()=>{
+        document.querySelectorAll(".cell.is-active").forEach(x=>{
+          if(x !== cell) x.classList.remove("is-active");
+        });
+        cell.classList.toggle("is-active");
+      });
+
+      row.appendChild(cell);
+    }
+
+    heatBody.appendChild(row);
+    cursor = addDays(cursor, 7);
+  }
+}
+
+function showMapperUI(){
+  mapperBox.style.display = "block";
+  headersDebug.value = headers.join("\n");
+
+  const fill = (sel, includeEmpty=false)=>{
+    sel.innerHTML = "";
+    if(includeEmpty){
+      const op = document.createElement("option");
+      op.value = "";
+      op.textContent = "— none —";
+      sel.appendChild(op);
+    }
+    headers.forEach(h=>{
+      const op = document.createElement("option");
+      op.value = h;
+      op.textContent = h;
+      sel.appendChild(op);
+    });
+  };
+
+  fill(mapUser);
+  fill(mapFecha);
+  fill(mapTimestamp, true);
+
+  const guess = detectColumns(headers);
+  if(guess.colUser) mapUser.value = guess.colUser;
+  if(guess.colFecha) mapFecha.value = guess.colFecha;
+  if(guess.colTimestamp) mapTimestamp.value = guess.colTimestamp;
+
+  setStatus("Auto-detect failed. Use Column Mapper.", true);
+}
+
+function applyMapping(userCol, fechaCol, tsCol){
+  COL_USER = userCol;
+  COL_FECHA = fechaCol;
+  COL_TIMESTAMP = tsCol || null;
+
+  if(!COL_USER || !COL_FECHA){
+    setStatus("Mapping requires Usuario and Fecha.", true);
+    return false;
+  }
+
+  const reserved = new Set([COL_USER, COL_FECHA, COL_TIMESTAMP].filter(Boolean));
+  itemCols = headers.filter(h => h && !reserved.has(h));
+
+  rawRows = rawRows.map(r=>({
+    ...r,
+    __user: r[COL_USER],
+    __fecha_raw: r[COL_FECHA],
+    __timestamp_raw: COL_TIMESTAMP ? r[COL_TIMESTAMP] : null
+  }));
+
+  users = Array.from(new Set(rawRows.map(r=>String(r.__user ?? "").trim()).filter(Boolean)))
+    .sort((a,b)=>a.localeCompare(b));
+
+  buildUserSelect();
+  buildItemsList();
+  mapperBox.style.display = "none";
+  setStatus("Mapping applied. Open Filters to change selection.");
+  return true;
+}
+
+btnUseMapping.addEventListener("click", ()=>{
+  const ok = applyMapping(mapUser.value, mapFecha.value, mapTimestamp.value);
+  if(ok) applyFilters();
+});
+
+async function loadData(){
+  setStatus("Loading CSV…");
+  dataPill.textContent = "Data: loading…";
+
+  const resp = await fetch(CSV_URL, { cache: "no-store" });
+  if(!resp.ok) throw new Error(`Fetch failed: ${resp.status}`);
+  const csvText = await resp.text();
+
+  const parsed = Papa.parse(csvText, { header:true, skipEmptyLines:true });
+  rawRows = parsed.data || [];
+  headers = (parsed.meta && parsed.meta.fields) ? parsed.meta.fields : Object.keys(rawRows[0] || {});
+
+  if(!rawRows.length) throw new Error("CSV returned 0 rows.");
+
+  const { colUser, colFecha, colTimestamp, items } = detectColumns(headers);
+
+  if(colUser && colFecha){
+    COL_USER = colUser;
+    COL_FECHA = colFecha;
+    COL_TIMESTAMP = colTimestamp || null;
+    itemCols = items;
+
+    rawRows = rawRows.map(r=>({
+      ...r,
+      __user: r[COL_USER],
+      __fecha_raw: r[COL_FECHA],
+      __timestamp_raw: COL_TIMESTAMP ? r[COL_TIMESTAMP] : null
+    }));
+
+    users = Array.from(new Set(rawRows.map(r=>String(r.__user ?? "").trim()).filter(Boolean)))
+      .sort((a,b)=>a.localeCompare(b));
+
+    buildUserSelect();
+    buildItemsList();
+  } else {
+    showMapperUI();
+  }
+
+  startDate.value = DEFAULT_START;
+  endDate.value = DEFAULT_END;
+
+  dataPill.textContent = `Data: ${rawRows.length} rows • ${users.length || "?"} user(s) • ${itemCols.length || "?"} item(s)`;
+  setStatus(users.length ? "Loaded. Open Filters to change selection." : "Loaded. Map columns first.");
+
+  if(window.matchMedia && window.matchMedia("(max-width: 900px)").matches){
+    const filters = document.getElementById("filters");
+    if(filters) filters.open = false;
+  }
+}
+
+el("btnApply").addEventListener("click", applyFilters);
+el("btnReset").addEventListener("click", ()=>{
+  userSelect.value = "__BOTH__";
+  startDate.value = DEFAULT_START;
+  endDate.value = DEFAULT_END;
+
+  selectedItems = new Set(itemCols);
+  [...itemsList.querySelectorAll('input[type="checkbox"]')].forEach(cb=>cb.checked = true);
+  refreshItemsCount();
+  applyFilters();
+});
+el("btnAll").addEventListener("click", ()=>{
+  selectedItems = new Set(itemCols);
+  [...itemsList.querySelectorAll('input[type="checkbox"]')].forEach(cb=>cb.checked = true);
+  refreshItemsCount();
+});
+el("btnNone").addEventListener("click", ()=>{
+  selectedItems.clear();
+  [...itemsList.querySelectorAll('input[type="checkbox"]')].forEach(cb=>cb.checked = false);
+  refreshItemsCount();
+});
+
+(async ()=>{
+  try{
+    await loadData();
+    if(itemCols.length) applyFilters();
+  }catch(err){
+    console.error(err);
+    setStatus(err.message || String(err), true);
+    dataPill.textContent = "Data: error";
+  }
+})();
+</script>
+</body>
+</html>
